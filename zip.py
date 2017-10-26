@@ -10,30 +10,36 @@ them into a file for further processing.
 """
 from bs4 import BeautifulSoup
 
-import sys
 import re
 import requests
 
-#Used to spoof user agent in order to web scrape, optional for this site
-url = 'http://www.zipcodestogo.com/Texas/'
-headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1)'
-           'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 '
-           'Safari/537.36'}
-
-r = requests.get(url, headers=headers)
-
-#Catches for errors in obtaining zip codes
-try:
-    r.raise_for_status()
-except Exception as exc:
-    print('There was problem retrieving the zip website: %s' % (exc))
+def script():
     
-valid_zip = re.compile(r"\d\d\d\d\d")
-
-parser = BeautifulSoup(r.text)
-
-#Iterates through the html document and prints out zip codes in Texas
-for link in parser.find_all('a'):
-    soup_string = str(link.string)
-    if (valid_zip.match(soup_string)):
-        print(soup_string)
+    #Used to spoof user agent in order to web scrape, optional for this site
+    url = 'http://www.zipcodestogo.com/Texas/'
+    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1)'
+               'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 '
+               'Safari/537.36'}
+    
+    r = requests.get(url, headers=headers)
+    
+    #Catches for errors in obtaining zip codes
+    try:
+        r.raise_for_status()
+    except Exception as exc:
+        print('There was problem retrieving the zip website: %s' % (exc))
+        
+    valid_zip = re.compile(r"\d\d\d\d\d")
+    
+    parser = BeautifulSoup(r.text)
+    
+    #Iterates through the html document and prints out zip codes in Texas
+    with open('zip.txt', 'w') as f:
+        for link in parser.find_all('a'):
+            soup_string = str(link.string)
+            if (valid_zip.match(soup_string)):
+                f.write(soup_string)
+                f.write('\n')
+                
+if __name__ == '__main__':
+    script()
