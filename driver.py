@@ -16,11 +16,12 @@ from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import Select
 
-from BeautifulSoup import bs4
+from bs4 import BeautifulSoup
 
 import csv
 import re
 import time
+import lxml
 
 # Hard coded cities in Texas that encompass the entire state within a
 # 100 mile radius of each other
@@ -48,20 +49,26 @@ cities = ['Dallas, TX',
           'Juno, TX',
           'Marfa, TX',
           'Cornudas, TX',
-          'Terlingua']
+          'Terlingua, TX']
 
 
 def main():
     browser = webdriver.Firefox()
-    with open('tx-clinics.csv', 'w') as csvfile:
-        for i in range(cities):
+    with open('tx-clinics.csv', 'w', newline='') as csvfile:
+        clinics_seen = set()
+        fieldnames = ['Name', 'Address', 'Phone Number', 
+                       'Programs Served', 'Languages Spoken']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for i in range(len(cities)):
             browser.get('https://www.healthytexaswomen.org/find-a-doctor')
             setup_page(browser)
+            time.sleep(5)
             input = browser.find_element_by_id('form-field-address')
             input.send_keys(cities[i])
             input.submit()
-            process_page(browser, csvfile)
             time.sleep(5)
+            process_page(browser, writer, csvfile, clinics_seen)
 
 # Prepares the parameters of radius 100 miles and which program to choose
 def setup_page(browser):
@@ -89,7 +96,7 @@ def try_radius(browser, form_id, radius_val):
             print('retry in 1s.')
             time.sleep(1)
     else:
-        print("Cannot find checkbox: " + form_id)
+        print("Cannot find radius dropdown: " + form_id)
         raise NoSuchElementException
         
     
@@ -110,8 +117,40 @@ def try_cbox(browser, form_id):
         
 # Parses the page for name, address, phone number, programs served, 
 # and language
-def process_page(browser, csvfile):
-    writer = csv.DictWriter()
+def process_page(browser, writer, csvfile, clinics_seen):
+    html = browser.page_source
+    soup = BeautifulSoup(html, "lxml")
+    names = []
+    address = []
+    phone_number = []
+    programs = []
+    languages = []
+    
+    for clinic_name in soup.find_all("div", class_="name"):
+        names.append(clinic_name.get_text().strip())
+    
+    for full_address in soup.find_all("span", class_="full-address"):
+        address.append(full_address.get_text(separator=' '))
+        
+    for phone in soup.find_all("span", class_="phone"):
+        phone_number.append(phone.get_text().strip())
+    
+    for span in soup.find_all("span", class_="info-label"):
+        if (span.text == "Programs Served: "):
+            programs.append(span.next_sibling.strip())
+        if (span.text == "Languages Spoken: "):
+            languages.append(span.next_sibling.strip())
+    
+    for i in range(len(names)):
+        if names[i] not in clinics_seen:
+            writer.writerow({'Name' : names[i], 
+                             'Address' : address[i], 
+                             'Phone Number' : phone_number[i],
+                             'Programs Served' : programs[i],
+                             'Languages Spoken' : languages[i]
+                             })
+            clinics_seen.add(names[i])
+            clinics_seen.add(address[i])
     
 if __name__ == '__main__':
     main()
